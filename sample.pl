@@ -4,7 +4,7 @@
 
 use FireXMPP;
 
-my $fe_client = new FireXMPP("fireeagle.com","suneel331\@jabber.org", "t.s.c%%%", "Qi66745ktJkf", "L6KfzTgkUvsXWgbBMfrlr9Dll99Eb5Fq");
+my $fe_client = new FireXMPP("fireeagle.com","xxxxxx\@jabber.org", "xxxxxxx", "Qi66745ktJkf", "L6KfzTgkUvsXWgbBMfrlr9Dll99Eb5Fq");
 $fe_client->print();
 # Connect is a blocking call
 $fe_client->Connect();
