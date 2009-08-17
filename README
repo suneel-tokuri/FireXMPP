@@ -1,0 +1,15 @@
+# FireXMPP
+
+FireXMPP is an open source perl library which aids development of tools for consuming FireEagle's XMPP pubsub feed.
+(http://fireeagle.yahoo.net)
+
+## REQUIREMENTS
+- [Net::XMPP - xmpp lib for perl]
+- [perl threads ]
+
+## EXAMPLE
+* check out sample.pl
+
+## FEEDBACK
+* Please report bugs to suneel331@gmail.com
+* Send feedback to [Fireeagle Yahoo Group](http://tech.groups.yahoo.com/group/fireeagle)
