@@ -4,18 +4,25 @@
 
 use FireXMPP;
 
-my $fe_client = new FireXMPP("fireeagle.com","xxxxxx\@jabber.org", "xxxxxxx", "Qi66745ktJkf", "L6KfzTgkUvsXWgbBMfrlr9Dll99Eb5Fq");
+#Parameters: FireEagle pubsub server, user JID(intermediate server), password, FireEagle Consumer Key, FireEagle Consumer Secret
+my $fe_client = new FireXMPP("fireeagle.com","xxxxxxx\@jabber.org", "xxxxxxxxxx", "xxxxxx", "xxxxxxxxxxxxxxxxxxx");
 $fe_client->print();
-# Connect is a blocking call
-$fe_client->Connect();
 
-print "adding fireeagle to roster...\n";
+my $result = $fe_client->Connect();
+print "Connect result: ".$result."\n";
+
+#print "adding fireeagle to roster...\n";
 $fe_client->add_fireeagle_to_roster();
 
-print "subscribe...\n";
-$fe_client->subscribe("kMMbczWle4Rc", "aQRh9Kv7hmWMZKFOmqbAhbp77IXDdsev");
+#ping is a blocking call
+$result = $fe_client->ping();
+print "Ping: ".$result."\n";
 
-for(my $i = 0; $i < 4; $i++) {
+#parameters: oauth.token, oauth.token_secret
+$result = $fe_client->subscribe("xxxxxxxxxxxxxxxxxxx", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+print "Subscribe: ".$result."\n";
+
+for(my $i = 0; $i < 7; $i++) {
 	print ".\n";
 	$fe_client->run(10);
 }

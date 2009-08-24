@@ -42,9 +42,6 @@ package FireXMPP;
 
 use OAuthXMPP;
 use Net::XMPP;
-use threads;
-use Thread::Semaphore;
-no warnings 'threads';
 
 warn "FireXMPP is successfully loaded...\n";
 
@@ -65,42 +62,47 @@ sub new {
 	$self->{"oauth"} = OAuthXMPP->new($self->{"server"}, $jid, $self->{"consumer_key"}, $self->{"consumer_secret"});        
 	$self->{"xmpp_client"} = new Net::XMPP::Client(debuglevel=>0);
 	$self->{"jid"} = new Net::XMPP::JID($jid);
-	#init is done, so bless the object
-	bless($self, $classname);
+	$self->{"idticker"} = time();
 
 	#set up callbacks
 	# defining linking closures
-	my $onauth_ = sub { onauth($self, @_); };
 	my $oniq_ = sub { oniq($self, @_); };
 	my $onmessage_ = sub { onmessage($self, @_); };
 	my $onpresence_ = sub { onpresence($self, @_); };
 
-	$self->{"xmpp_client"}->SetCallBacks(onauth=>$onauth_);
 	$self->{"xmpp_client"}->SetCallBacks(message=>$onmessage_);
 	$self->{"xmpp_client"}->SetCallBacks(presence=>$onpresence_);
 	$self->{"xmpp_client"}->SetCallBacks(iq=>$oniq_);
 
+	bless($self, $classname);
 	return $self;
+}
+
+sub getNextID {
+	my ($self) = @_;
+	$self->{"idticker"}++;
+	return "firexmpp-".$self->{"idticker"};
 }
 
 sub Connect {
 	my ($self) = @_;
 
-	$self->{"auth_sema"} = Thread::Semaphore->new(0);
-	my $xmppthread = threads->create(sub {
-		#defaulting the xmpp server port for now
-		my $port = 5222;
-		my ($node, $domain) = split(/\@/, $self->{"jid"}->GetJID("base"));
-		$self->{"xmpp_client"}->Execute(hostname=>$self->{"jid"}->GetServer(), 
-						port=>$port, tls=>1, username=>$node, 
-						password=>$self->{"passwd"}, resource=>"fireeagle",
-						register=>0,connectiontype=>"tcpip", 
-						connecttimeout=>"600",connectattempts=>1, 
-						connectsleep=>5, processtimeout=>600);
-	}, $self->{"auth_sema"});
+	#defaulting the xmpp server port for now
+	my $port = 5222;
+	my ($node, $domain) = split(/\@/, $self->{"jid"}->GetJID("base"));
 
-	# block client's thread until auth happens
-	$self->{"auth_sema"}->down();
+	$self->{"xmpp_client"}->Connect(hostname=>$self->{"jid"}->GetServer(),
+					port=>$port, timeout=>60, connectiontype=>"tcpip", tls=>1);
+	if($self->{"xmpp_client"}->Connected() == 1) {
+		my @result = $self->{"xmpp_client"}->AuthSend(username=>$node,
+                                    password=>$self->{"passwd"},
+                                    resource=>"fireeagle");
+		if(@result[0] == "ok") {
+			$self->{"xmpp_client"}->PresenceSend(type=>"available");
+			return @result[0];
+		}
+	}
+	return "failed";
 }
 
 sub print {
@@ -113,13 +115,37 @@ sub add_fireeagle_to_roster {
 	$self->{"xmpp_client"}->Subscription(type=>"subscribe", to=>$self->{"server"});	
 }
 
+sub ping {
+	my ($self) = @_;
+
+	my $iq = new Net::XMPP::IQ();
+	$iq->SetIQ(type=>"get", from=>$self->{"jid"}->GetJID("base")."/fireeagle", to=>$self->{"server"});
+	$iq->InsertRawXML("<ping xmlns='urn:xmpp:ping'/>");
+	#print "==>".$iq->GetXML()."\n";
+	my $result = $self->{"xmpp_client"}->SendAndReceiveWithID($iq);
+	my $type = $result->GetType();
+	$type = lc $type;
+	if($type == "result") {
+		return "ok";
+	}
+	return "failed";
+}
+
 sub subscribe {
 	my ($self) = shift;
 	my $token = shift;
 	my $secret = shift;
 
-	#print "==>".$self->{"oauth"}->build_pubsub_request('subscribe', $token, $secret);
-
+	my $iq = new Net::XMPP::IQ();
+	$iq->SetIQ(type=>"set", from=>$self->{"jid"}, to=>$self->{"server"});
+	$iq->InsertRawXML($self->{"oauth"}->build_pubsub_request('subscribe', $token, $secret));
+	print "==>".$iq->GetXML()."\n";
+	my $result = $self->{"xmpp_client"}->SendAndReceiveWithID($iq);
+	my $type = lc $result->GetType();
+	if($type == "result") {
+		return "ok";
+	}
+	return "failed";
 }
 
 sub run {
@@ -127,7 +153,8 @@ sub run {
 	my ($sleep) = shift;
 
 	if($sleep) {
-		sleep $sleep;
+		#sleep $sleep;
+		$self->{"xmpp_client"}->Process($sleep);
 	} else {		
 		# todo: hold the thread
 		#$self->{"xmpp_thread"}->join();
@@ -146,16 +173,6 @@ sub Close {
 #
 # XMPP Listener implementation
 #
-
-sub onauth {
-	my ($self) = @_;
-	print "~~~~~~~~~~~ onauth ~~~~~~~~~\n";
-	# send initial presence
-	$self->{"xmpp_client"}->PresenceSend(type=>"available");
-
-	# let the client's thread run away
-	$self->{"auth_sema"}->up();
-}
 
 sub oniq {
 	my ($self,$sid,$iq) = @_;
